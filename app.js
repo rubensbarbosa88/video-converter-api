@@ -2,7 +2,6 @@ import express from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import logger from 'morgan'
-// import fileupload from 'express-fileupload'
 
 import convertRouter from './routes/Convert/index.js'
 
@@ -13,7 +12,6 @@ app.use(logger('dev'))
 app.use(express.json())
 app.use(express.urlencoded({ extended: false }))
 app.use(cookieParser())
-// app.use(fileupload())
 // app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/convert', convertRouter)
