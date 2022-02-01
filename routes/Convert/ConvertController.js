@@ -1,8 +1,6 @@
 import multer from 'multer'
 import fs from 'fs'
-import path, { resolve } from 'path'
-import { rejects } from 'assert'
-// import hbjs from 'handbrake-js'
+import path from 'path'
 
 class ConvertController {
   #uploadVideo (req, res) {
@@ -36,12 +34,11 @@ class ConvertController {
 
   getVideo = async (req, res) => {
     try {
-      const files = await fs.promises.readdir(path.resolve('uploads'))
-      const video = files[req.params.video]
+      const videoPath = path.resolve('uploads')
+      const files = await fs.promises.readdir(videoPath)
+      const video = files.find(item => item === req.params.video)
       
-      console.log('PARAMS >>>', req.params)
-      console.log(video)
-      res.download(video)
+      res.download(`${videoPath}/${video}`)
     } catch (err) {
       return err
     }
