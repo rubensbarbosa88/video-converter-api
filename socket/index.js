@@ -9,12 +9,13 @@ ffmpeg.setFfmpegPath(ffmpegInstaller.path)
 class WebsocketConnection {
   init = server => {
     const getVideoConverted = this.#getVideoConverted
+    const response = this.#response
     const wss = new WebSocketServer({ server , path:"/getVideoConverted" });
 
     wss.on('connection', function connection(ws) {
       ws.on('message', function message(data) {
         const req = data.toString()
-        ws.send(JSON.stringify('Processando'))
+        ws.send(response('Processando'))
         getVideoConverted(ws, req)
       });
     });
@@ -33,7 +34,7 @@ class WebsocketConnection {
       let totalTime
       ffmpeg(videoPath.input)
         .output(videoPath.output)
-        .on('start', () => { ws.send(JSON.stringify('Iniciando')) })
+        .on('start', () => { ws.send(this.#response('Iniciando')) })
         .on('codecData', data => {
           totalTime = this.#timeToNumber(data.duration)
         })
@@ -41,14 +42,14 @@ class WebsocketConnection {
           const time = this.#timeToNumber(progress.timemark)
           const percent = parseInt((time / totalTime) * 100)
 
-          ws.send(progress.percent || percent)
+          ws.send(this.#response(progress.percent || percent))
         })
         .on('error', err => { throw err })
-        .on('end', () => { ws.send(JSON.stringify({video: `${filename}.avi` })) })
+        .on('end', () => { ws.send(this.#response(`${filename}.avi`, 'data')) })
         .run()
 
     } catch (err) {
-      ws.send(JSON.stringify(err.message))
+      ws.send(this.#response(err.message, 'error'))
     }
   }
 
@@ -65,6 +66,15 @@ class WebsocketConnection {
 
   #timeToNumber (time) {
     return parseInt(time.replace(/:/g, ''))
+  }
+
+  #response (message, type) {
+    const obj = {
+      type: type || 'message',
+      message
+    }
+
+    return JSON.stringify(obj)
   }
 }
 
