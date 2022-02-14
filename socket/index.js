@@ -15,7 +15,7 @@ class WebsocketConnection {
     wss.on('connection', function connection(ws) {
       ws.on('message', function message(data) {
         const req = data.toString()
-        ws.send(response('Processando'))
+        ws.send(response('Recebendo vídeo'))
         getVideoConverted(ws, req)
       });
     });
@@ -34,15 +34,22 @@ class WebsocketConnection {
       let totalTime
       ffmpeg(videoPath.input)
         .output(videoPath.output)
-        .on('start', () => { ws.send(this.#response('Iniciando')) })
+        .on('start', () => {
+          ws.send('Processando')
+        })
         .on('codecData', data => {
           totalTime = this.#timeToNumber(data.duration)
         })
         .on('progress', progress => {
           const time = this.#timeToNumber(progress.timemark)
           const percent = parseInt((time / totalTime) * 100)
+          const htmlText = `
+            Convertendo <span class="font-weight-medium">${path.parse(file).ext}</span>
+            para <span class="font-weight-medium">.avi</span>
+          `
 
-          ws.send(this.#response(progress.percent || percent))
+          ws.send(this.#response(htmlText))
+          ws.send(this.#response(progress.percent || percent, 'progress'))
         })
         .on('error', err => { throw err })
         .on('end', () => { ws.send(this.#response(`${filename}.avi`, 'data')) })
