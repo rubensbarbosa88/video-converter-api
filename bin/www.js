@@ -7,6 +7,7 @@
 import app from '../app.js'
 import http from 'http'
 import websocketConnection from '../socket/index.js'
+import { startPeriodicCleanup } from '../utils/fileCleanup.js'
 
 /**
  * Get port from environment and store in Express.
@@ -21,6 +22,7 @@ app.set('port', port);
 
 const server = http.createServer(app);
 websocketConnection.init(server)
+startPeriodicCleanup()
 
 /**
  * Listen on provided port, on all network interfaces.
@@ -83,8 +85,8 @@ function onError(error) {
  */
 
 function onListening() {
-  var addr = server.address();
-  var bind = typeof addr === 'string'
+  const addr = server.address();
+  const bind = typeof addr === 'string'
     ? 'pipe ' + addr
     : 'Porta ' + addr.port;
 

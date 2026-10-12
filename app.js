@@ -16,4 +16,15 @@ app.use(cookieParser())
 
 app.use('/convert', convertRouter)
 
-export default app;
+// Tratamento de rota não encontrada (404)
+app.use((req, res) => {
+  res.status(404).json({ message: 'Rota não encontrada' })
+})
+
+// Tratamento global de erros
+app.use((err, req, res, next) => {
+  console.error('Unhandled express error:', err)
+  res.status(err.status || 500).json({ message: err.message || 'Erro interno no servidor' })
+})
+
+export default app

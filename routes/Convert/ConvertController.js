@@ -1,46 +1,77 @@
 import multer from 'multer'
 import fs from 'fs'
 import path from 'path'
+import { UPLOADS_DIR, scheduleFileDeletion } from '../../utils/fileCleanup.js'
+
+const MAX_FILE_SIZE = 200 * 1024 * 1024 // 200MB
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`
+    const safeOriginalName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')
+    cb(null, `${uniqueSuffix}_${safeOriginalName}`)
+  }
+})
+
+const upload = multer({
+  storage,
+  limits: { fileSize: MAX_FILE_SIZE },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype && !file.mimetype.startsWith('video/')) {
+      return cb(new Error('Apenas arquivos de vídeo são permitidos para upload.'))
+    }
+    cb(null, true)
+  }
+})
 
 class ConvertController {
-  #uploadVideo (req, res) {
-    return new Promise((resolve, reject) => {
-      const storage = multer.diskStorage({
-        destination: (req, file, cb) => cb(null, 'uploads/'),
-        filename: (req, file, cb) => {
-          const uniqueSuffix = `${Date.now()}${Math.round(Math.random() * 1E9)}`
-          cb(null, `${uniqueSuffix}_${file.originalname}`) 
+  postVideo = (req, res) => {
+    upload.single('video')(req, res, err => {
+      if (err) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(413).json({
+            message: 'O arquivo excede o limite máximo permitido de 200MB.'
+          })
         }
-      })
-  
-      const upload = multer({ storage }).single('video')
-  
-      upload(req, res, err => { 
-        if (err) reject(err)
-        resolve(req.file)
-      })
-    })
-  }
+        return res.status(400).json({ message: err.message || 'Erro no upload do vídeo.' })
+      }
 
-  postVideo = async (req, res) => {
-    try {
-      const response = await this.#uploadVideo(req, res)
-      
-      res.json({ video: response.filename })
-    } catch (err) {
-      res.status(400).json({ message: err})
-    }
+      if (!req.file) {
+        return res.status(400).json({ message: 'Nenhum arquivo enviado no campo "video".' })
+      }
+
+      const filePath = path.join(UPLOADS_DIR, req.file.filename)
+      // Agenda a exclusão do vídeo original em 30 minutos caso o usuário nunca o converta
+      scheduleFileDeletion(filePath)
+
+      return res.status(200).json({ video: req.file.filename })
+    })
   }
 
   getVideo = async (req, res) => {
     try {
-      const videoPath = path.resolve('uploads')
-      const files = await fs.promises.readdir(videoPath)
-      const video = files.find(item => item === req.params.video)
-      
-      res.download(`${videoPath}/${video}`)
+      const rawFilename = req.params.video
+      if (!rawFilename) {
+        return res.status(400).json({ message: 'Nome do arquivo não informado.' })
+      }
+
+      // Previne ataques de path traversal
+      const safeFilename = path.basename(rawFilename)
+      const targetFilePath = path.join(UPLOADS_DIR, safeFilename)
+
+      if (!fs.existsSync(targetFilePath)) {
+        return res.status(404).json({ message: 'Vídeo não encontrado ou expirado.' })
+      }
+
+      return res.download(targetFilePath, safeFilename, err => {
+        if (err && !res.headersSent) {
+          res.status(500).json({ message: 'Erro ao transferir o arquivo.' })
+        }
+      })
     } catch (err) {
-      return err
+      console.error('Erro em getVideo:', err)
+      return res.status(500).json({ message: err.message || 'Erro interno no servidor.' })
     }
   }
 }
