@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 
 export const UPLOADS_DIR = path.resolve('uploads')
-export const DEFAULT_FILE_TTL_MS = 30 * 60 * 1000 // 30 minutos
+export const DEFAULT_FILE_TTL_MS = parseInt(process.env.FILE_TTL_MINUTES || '15', 10) * 60 * 1000 // 15 minutos padrão para economizar espaço e cache de memória
 
 // Garante que a pasta uploads existe
 if (!fs.existsSync(UPLOADS_DIR)) {

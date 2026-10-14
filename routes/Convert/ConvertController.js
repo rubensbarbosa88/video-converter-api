@@ -4,7 +4,8 @@ import path from 'path'
 import { UPLOADS_DIR, scheduleFileDeletion, deleteFileImmediate } from '../../utils/fileCleanup.js'
 import { isAllowedVideoExtension, validateUploadedVideo } from '../../utils/videoValidator.js'
 
-const MAX_FILE_SIZE = 200 * 1024 * 1024 // 200MB
+const MAX_FILE_SIZE_MB = parseInt(process.env.MAX_FILE_SIZE_MB || '100', 10)
+const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024 // Limite configurável (default: 100MB para ambientes de 512MB RAM)
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
@@ -38,7 +39,7 @@ class ConvertController {
       if (err) {
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(413).json({
-            message: 'O arquivo excede o limite máximo permitido de 200MB.'
+            message: `O arquivo excede o limite máximo permitido de ${MAX_FILE_SIZE_MB}MB.`
           })
         }
         return res.status(400).json({ message: err.message || 'Erro no upload do vídeo.' })
@@ -54,13 +55,22 @@ class ConvertController {
         // Validação de segurança em multicamadas: Magic Bytes + FFprobe
         await validateUploadedVideo(filePath)
 
-        // Agenda a exclusão do vídeo original em 30 minutos caso o usuário nunca o converta
+        // Agenda a exclusão do vídeo original caso o usuário nunca o converta
         scheduleFileDeletion(filePath)
+
+        // Libera memória heap após processamento do upload
+        if (global.gc) {
+          global.gc()
+        }
 
         return res.status(200).json({ video: req.file.filename })
       } catch (validationErr) {
         // Remove imediatamente o arquivo ilegítimo ou corrompido do servidor
         await deleteFileImmediate(filePath)
+
+        if (global.gc) {
+          global.gc()
+        }
 
         return res.status(400).json({
           message: validationErr.message || 'Arquivo rejeitado pela validação de segurança.'
