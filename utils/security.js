@@ -7,21 +7,28 @@ import rateLimit from 'express-rate-limit'
 export function getAllowedOrigins() {
   const envOrigins = process.env.ALLOWED_ORIGINS
   if (envOrigins) {
-    return envOrigins
+    const list = envOrigins
       .split(',')
       .map(origin => origin.trim().replace(/\/$/, ''))
       .filter(Boolean)
+
+    if (process.env.ALLOW_NULL_ORIGIN === 'true' && !list.includes('null')) {
+      list.push('null')
+    }
+    return list
   }
 
-  // Origens padrão para desenvolvimento local caso nenhuma variável tenha sido configurada
+  // Origens padrão caso nenhuma variável tenha sido configurada
   return [
     'http://localhost:3000',
     'http://localhost:5173',
     'http://localhost:4173',
     'http://localhost:8080',
+    'http://localhost:5500',
     'http://127.0.0.1:3000',
     'http://127.0.0.1:5173',
-    'http://127.0.0.1:5500'
+    'http://127.0.0.1:5500',
+    'null' // Permite testes locais com front-end aberto via arquivo local (file://)
   ]
 }
 
@@ -35,6 +42,12 @@ export function isOriginAllowed(origin) {
 
   const normalized = origin.trim().replace(/\/$/, '').toLowerCase()
   const allowed = getAllowedOrigins().map(o => o.toLowerCase())
+
+  // Permite 'null' (enviado pelo navegador quando o front é aberto localmente via file://)
+  // a menos que seja explicitamente desativado com ALLOW_NULL_ORIGIN=false
+  if (normalized === 'null') {
+    return process.env.ALLOW_NULL_ORIGIN !== 'false'
+  }
 
   return allowed.includes(normalized)
 }

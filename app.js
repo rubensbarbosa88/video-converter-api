@@ -10,6 +10,10 @@ import convertRouter from './routes/Convert/index.js'
 
 const app = express()
 
+// Habilita trust proxy para proxies reversos (como Render, Cloudflare, Heroku)
+// Necessário para que o express-rate-limit identifique o IP real via X-Forwarded-For
+app.set('trust proxy', 1)
+
 // Cabeçalhos de segurança HTTP (desabilita X-Powered-By, protege contra MIME sniffing, etc.)
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }
