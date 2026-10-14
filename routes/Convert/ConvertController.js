@@ -1,7 +1,8 @@
 import multer from 'multer'
 import fs from 'fs'
 import path from 'path'
-import { UPLOADS_DIR, scheduleFileDeletion } from '../../utils/fileCleanup.js'
+import { UPLOADS_DIR, scheduleFileDeletion, deleteFileImmediate } from '../../utils/fileCleanup.js'
+import { isAllowedVideoExtension, validateUploadedVideo } from '../../utils/videoValidator.js'
 
 const MAX_FILE_SIZE = 200 * 1024 * 1024 // 200MB
 
@@ -18,16 +19,22 @@ const upload = multer({
   storage,
   limits: { fileSize: MAX_FILE_SIZE },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype && !file.mimetype.startsWith('video/')) {
-      return cb(new Error('Apenas arquivos de vídeo são permitidos para upload.'))
+    if (!isAllowedVideoExtension(file.originalname)) {
+      const ext = path.extname(file.originalname) || 'desconhecida'
+      return cb(new Error(`Extensão "${ext}" não permitida. Apenas arquivos de vídeo são permitidos para upload.`))
     }
+
+    if (file.mimetype && !file.mimetype.startsWith('video/') && file.mimetype !== 'application/octet-stream') {
+      return cb(new Error('MIME type inválido. Apenas arquivos de vídeo são permitidos para upload.'))
+    }
+
     cb(null, true)
   }
 })
 
 class ConvertController {
   postVideo = (req, res) => {
-    upload.single('video')(req, res, err => {
+    upload.single('video')(req, res, async err => {
       if (err) {
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(413).json({
@@ -42,10 +49,23 @@ class ConvertController {
       }
 
       const filePath = path.join(UPLOADS_DIR, req.file.filename)
-      // Agenda a exclusão do vídeo original em 30 minutos caso o usuário nunca o converta
-      scheduleFileDeletion(filePath)
 
-      return res.status(200).json({ video: req.file.filename })
+      try {
+        // Validação de segurança em multicamadas: Magic Bytes + FFprobe
+        await validateUploadedVideo(filePath)
+
+        // Agenda a exclusão do vídeo original em 30 minutos caso o usuário nunca o converta
+        scheduleFileDeletion(filePath)
+
+        return res.status(200).json({ video: req.file.filename })
+      } catch (validationErr) {
+        // Remove imediatamente o arquivo ilegítimo ou corrompido do servidor
+        await deleteFileImmediate(filePath)
+
+        return res.status(400).json({
+          message: validationErr.message || 'Arquivo rejeitado pela validação de segurança.'
+        })
+      }
     })
   }
 

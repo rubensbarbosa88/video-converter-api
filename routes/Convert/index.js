@@ -1,10 +1,12 @@
 import express from 'express'
-import ConvertController from './ConvertController.js' 
-const router = express.Router();
+import ConvertController from './ConvertController.js'
+import { uploadLimiter, downloadLimiter } from '../../utils/security.js'
 
-/* GET home page. */
+const router = express.Router()
+
+/* Rotas de conversão com rate limits específicos */
 router
-    .get('/:video', ConvertController.getVideo)
-    .post('/', ConvertController.postVideo)
+  .get('/:video', downloadLimiter, ConvertController.getVideo)
+  .post('/', uploadLimiter, ConvertController.postVideo)
 
 export default router

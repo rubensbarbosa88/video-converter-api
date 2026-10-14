@@ -2,14 +2,21 @@ import { WebSocketServer } from 'ws'
 import path from 'path'
 import fs from 'fs'
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'
+import ffprobeInstaller from '@ffprobe-installer/ffprobe'
 import ffmpeg from 'fluent-ffmpeg'
 import { UPLOADS_DIR, scheduleFileDeletion, deleteFileImmediate } from '../utils/fileCleanup.js'
+import { verifyWebSocketOrigin } from '../utils/security.js'
 
 ffmpeg.setFfmpegPath(ffmpegInstaller.path)
+ffmpeg.setFfprobePath(ffprobeInstaller.path)
 
 class WebsocketConnection {
   init(server) {
-    const wss = new WebSocketServer({ server, path: '/getVideoConverted' })
+    const wss = new WebSocketServer({
+      server,
+      path: '/getVideoConverted',
+      verifyClient: verifyWebSocketOrigin
+    })
 
     wss.on('connection', ws => {
       ws.on('message', data => {
@@ -70,6 +77,9 @@ class WebsocketConnection {
       let totalSeconds = 0
 
       ffmpeg(videoPath.input)
+        .inputOptions([
+          '-protocol_whitelist', 'file,crypto,data'
+        ])
         .output(videoPath.output)
         .on('start', () => {
           this.#sendSafe(ws, `Processando conversão para ${targetFormat.toUpperCase()}`)

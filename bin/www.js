@@ -4,6 +4,7 @@
  * Module dependencies.
  */
 
+import 'dotenv/config'
 import app from '../app.js'
 import http from 'http'
 import websocketConnection from '../socket/index.js'
